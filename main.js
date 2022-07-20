@@ -9,6 +9,8 @@ const fuseAll = (d) => {
   return out;
 };
 
+const range = (n) => [...Array(n).keys()];
+
 export function makeSideHinge(
   height,
   width,
@@ -75,11 +77,14 @@ export function makeSideHinge(
       .cut(spacer().translate(-i * (supportWidth + tolerance), 0));
   }
 
-  const support = hingeSupport();
+  const translationStep = supportWidth + tolerance;
+
+  const support = hingeSupport().translateX(-translationStep * (nCouples - 1));
+
   const mirrorSupport = support
     .clone()
     .mirror(makePlane("XZ"))
-    .translateX(-supportWidth - tolerance);
+    .translateX(-translationStep);
 
   let hinge = base
     .sketchOnPlane("XY")
@@ -88,15 +93,10 @@ export function makeSideHinge(
     .fuse(support)
     .fuse(mirrorSupport);
 
-  const translationStep = supportWidth + tolerance;
   for (let i = 1; i < nCouples; i++) {
     hinge = hinge
-      .fuse(support.clone().translateX((-1) ** i * i * 2 * translationStep))
-      .fuse(
-        mirrorSupport
-          .clone()
-          .translateX((-1) ** (i + 1) * i * 2 * translationStep)
-      );
+      .fuse(support.clone().translateX(2 * translationStep * i))
+      .fuse(mirrorSupport.clone().translateX(2 * translationStep * i));
   }
   if (height / 2 - radius > radius / 2)
     hinge = hinge.chamfer(radius / 2, (e) =>
@@ -109,9 +109,20 @@ export function makeSideHinge(
   };
 }
 
-export function makeFlatHinge(height, width, baseHeight, tolerance = 0.4) {
+export function makeFlatHinge(
+  height,
+  width,
+  baseHeight,
+  tolerance = 0.4,
+  nCouples = 2
+) {
   const radius = height / 2;
   const { draw, drawRoundedRectangle } = replicad;
+
+  const nElements = nCouples * 2;
+  const nCuts = nElements - 1;
+
+  const flapWidth = (width - tolerance * nCuts) / nElements;
 
   const spacer = () =>
     draw()
@@ -126,35 +137,45 @@ export function makeFlatHinge(height, width, baseHeight, tolerance = 0.4) {
       .close();
 
   let base = drawRoundedRectangle(width, radius).translate(0, radius / 2);
-  base = base
-    .cut(spacer())
-    .cut(spacer().translate(width / 4, 0))
-    .cut(spacer().translate(-width / 4, 0));
+  base = base.cut(spacer());
+  for (let i = 1; i < nCouples; i++) {
+    base = base
+      .cut(spacer().translate(i * (flapWidth + tolerance), 0))
+      .cut(spacer().translate(-i * (flapWidth + tolerance), 0));
+  }
 
   const flapLength = radius + tolerance;
+  const translationStep = flapWidth + tolerance;
+
+  const flap = drawRoundedRectangle(flapWidth, flapLength).translate(
+    -translationStep * (nCouples - 1.5),
+    flapLength / 2
+  );
+  const mirrorFlap = drawRoundedRectangle(flapWidth, flapLength).translate(
+    -translationStep * (nCouples - 0.5),
+    -flapLength / 2
+  );
+
+  const fullCylinder = drawRoundedRectangle(width, radius)
+    .translate(0, radius / 2)
+    .sketchOnPlane()
+    .revolve([1, 0, 0])
+    .translateZ(radius);
 
   const flaps = fuseAll([
-    drawRoundedRectangle(width / 4 - tolerance / 2, flapLength).translate(
-      -width / 2 + (width / 4 - tolerance / 2) / 2,
-      flapLength / 2
-    ),
-    drawRoundedRectangle(width / 4 - tolerance, flapLength).translate(
-      width / 4 / 2,
-      flapLength / 2
-    ),
-
-    drawRoundedRectangle(width / 4 - tolerance / 2, flapLength).translate(
-      -(-width / 2 + (width / 4 - tolerance / 2) / 2),
-      -flapLength / 2
-    ),
-
-    drawRoundedRectangle(width / 4 - tolerance, flapLength).translate(
-      -(width / 4) / 2,
-      -flapLength / 2
-    ),
+    flap,
+    mirrorFlap,
+    ...range(nCouples - 1).flatMap((n) => {
+      const translation = 2 * (n + 1) * translationStep;
+      return [
+        flap.clone().translate(translation, 0),
+        mirrorFlap.translate(translation, 0),
+      ];
+    }),
   ])
     .sketchOnPlane()
-    .extrude(baseHeight);
+    .extrude(baseHeight)
+    .cut(fullCylinder);
   const hinge = base.sketchOnPlane("XY").revolve([1, 0, 0]).translateZ(radius);
 
   return {
