@@ -12,7 +12,7 @@ const fuseAll = (d) => {
 export function makeSideHinge(
   height,
   width,
-  { hingeRadius = null, tolerance = 0.4, nCouples = 2 }
+  { hingeRadius = null, tolerance = 0.4, nCouples = 2, backTolerance = 0.4 }
 ) {
   const { draw, drawRoundedRectangle, drawCircle, makePlane } = replicad;
   const radius = Math.min(height / 2, hingeRadius || height);
@@ -38,14 +38,17 @@ export function makeSideHinge(
 
     if (slopeLength < x0) support = support.hLine(x0 - slopeLength);
 
+    let pillar = draw().hLine(radius);
+    if (backTolerance) pillar = pillar.line(backTolerance, -backTolerance);
+    pillar = pillar
+      .vLine(-height / 2 + backTolerance)
+      .hLine(-radius - backTolerance)
+      .close()
+      .translate(0, height / 2);
+
     return support
       .close()
-      .fuse(
-        drawRoundedRectangle(radius, height / 2).translate(
-          radius / 2,
-          height / 4
-        )
-      )
+      .fuse(pillar)
       .cut(drawCircle(radius - tolerance).translate(0, height / 2))
       .sketchOnPlane("YZ", +tolerance / 2)
       .extrude(supportWidth);
@@ -102,7 +105,7 @@ export function makeSideHinge(
 
   return {
     hinge: hinge,
-    hingeWidth: radius / 2,
+    hingeWidth: radius + backTolerance,
   };
 }
 
@@ -167,9 +170,10 @@ export function makeFlatHinge(height, width, baseHeight, tolerance = 0.4) {
 }
 
 export default function main() {
+  const sideHinge = makeSideHinge(60, 20, { hingeRadius: 6 });
   return [
     {
-      shape: makeSideHinge(60, 20, { hingeRadius: 6 }).hinge.translateX(15),
+      shape: sideHinge.hinge.translateX(15),
       name: "Side hinge",
     },
     {
