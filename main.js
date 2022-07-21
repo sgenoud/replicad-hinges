@@ -24,12 +24,12 @@ export function makeSideHinge(
 
   const supportWidth = (width - tolerance * nCuts) / nElements;
 
+  const x0 = radius + radius / Math.sqrt(2);
+  const y0 = radius / Math.sqrt(2);
+
+  const rest = height / 2 - y0;
+
   const hingeSupport = () => {
-    const x0 = radius + radius / Math.sqrt(2);
-    const y0 = radius / Math.sqrt(2);
-
-    const rest = height / 2 - y0;
-
     const slopeLength = Math.min(rest, x0);
 
     let support = draw()
@@ -40,11 +40,13 @@ export function makeSideHinge(
 
     if (slopeLength < x0) support = support.hLine(x0 - slopeLength);
 
+    const pillarChamfer = Math.min(radius / 2, height / 4);
     let pillar = draw().hLine(radius);
     if (backTolerance) pillar = pillar.line(backTolerance, -backTolerance);
     pillar = pillar
       .vLine(-height / 2 + backTolerance)
-      .hLine(-radius - backTolerance)
+      .hLine(pillarChamfer - radius - backTolerance)
+      .line(-pillarChamfer, pillarChamfer)
       .close()
       .translate(0, height / 2);
 
@@ -98,10 +100,6 @@ export function makeSideHinge(
       .fuse(support.clone().translateX(2 * translationStep * i))
       .fuse(mirrorSupport.clone().translateX(2 * translationStep * i));
   }
-  if (height / 2 - radius > radius / 2)
-    hinge = hinge.chamfer(radius / 2, (e) =>
-      e.inDirection("X").inPlane("XY").inPlane("XZ")
-    );
 
   return {
     hinge: hinge,
